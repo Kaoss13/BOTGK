@@ -1,11 +1,14 @@
 import os
 import discord
-import random
+import numpy as np
 from discord.ext import commands
+from sentence_transformers import SentenceTransformer, util
+
 
 intents = discord.Intents.default()
 intents.message_content = True
-bot = discord.Client(intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents)
+
 
 responses = [
     "Vous comprenez rien au jeu ", "TA GUEULE", "Je suis meilleur que vous",
@@ -24,20 +27,35 @@ responses = [
 ]
 
 
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+
+response_embeddings = model.encode(responses, convert_to_tensor=True)
+
 @bot.event
 async def on_ready():
-  print(f'Connecté en tant que {bot.user}')
-
+    print(f'Connecté en tant que {bot.user}')
 
 @bot.event
 async def on_message(message):
-  if message.author == bot.user:
-    return
+    if message.author == bot.user:
+        return
 
-  if bot.user in message.mentions:
-    response = random.choice(responses)
-    await message.reply(response)
+    if bot.user in message.mentions:
+        
+        query_embedding = model.encode(message.content, convert_to_tensor=True)
+
+        
+        cos_scores = util.cos_sim(query_embedding, response_embeddings)[0]
+
+       
+        best_idx = int(np.argmax(cos_scores))
+        chosen = responses[best_idx]
+
+        await message.reply(chosen)
+
+    
+    await bot.process_commands(message)
 
 
-token = os.environ['TOKEn_BOT']
-bot.run(token)
+bot.run(os.getenv("DISCORD_TOKEN"))
